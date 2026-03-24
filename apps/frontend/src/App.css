@@ -1,0 +1,25 @@
+:root {
+  font-family: Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+section {
+  text-align: center;
+}
+
+button {
+  margin: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+}
