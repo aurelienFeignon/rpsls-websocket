@@ -5,38 +5,79 @@ import {
     resolveRound,
 } from '@wooclap/shared';
 import {
-    addPlayer,
-    removePlayer,
-    isPlayer,
-    setSelection,
-    resetSelections,
-    getPlayers,
-    getSelections,
-} from './gameState.js';
+    createRoom,
+    getRoom,
+    addPlayerToRoom,
+    removePlayerFromRoom,
+    setRoomSelection,
+    resetRoomSelections,
+} from './roomState.js';
 
 export function registerGameHandlers(io, socket) {
-    const added = addPlayer(socket.id);
+    socket.on(CLIENT_EVENTS.CREATE_PRIVATE_ROOM, () => {
+        const room = createRoom();
 
-    if (!added) {
-        socket.emit(SERVER_EVENTS.ERROR, { message: 'Game is full' });
-        socket.disconnect();
-        return;
-    }
+        const joinResult = addPlayerToRoom(room.id, socket.id);
 
-    const players = getPlayers();
+        if (!joinResult.ok) {
+            socket.emit(SERVER_EVENTS.ERROR, { message: joinResult.reason });
+            return;
+        }
 
-    if (players.length === 1) {
+        socket.join(room.id);
+        socket.data.roomId = room.id;
+
+        socket.emit(SERVER_EVENTS.ROOM_CREATED, {
+            roomId: room.id,
+        });
+
         socket.emit(SERVER_EVENTS.WAITING_FOR_OPPONENT, {
+            roomId: room.id,
             playerId: socket.id,
         });
-    }
+    });
 
-    if (players.length === 2) {
-        io.emit(SERVER_EVENTS.GAME_READY);
-    }
+    socket.on(CLIENT_EVENTS.JOIN_PRIVATE_ROOM, ({ roomId }) => {
+        if (!roomId) {
+            socket.emit(SERVER_EVENTS.ERROR, { message: 'Missing room id' });
+            return;
+        }
+
+        const joinResult = addPlayerToRoom(roomId, socket.id);
+
+        if (!joinResult.ok) {
+            socket.emit(SERVER_EVENTS.ERROR, { message: joinResult.reason });
+            return;
+        }
+
+        socket.join(roomId);
+        socket.data.roomId = roomId;
+
+        socket.emit(SERVER_EVENTS.ROOM_JOINED, { roomId });
+
+        const room = getRoom(roomId);
+
+        if (room && room.playerOrder.length === 2) {
+            io.to(roomId).emit(SERVER_EVENTS.GAME_READY, { roomId });
+        }
+    });
 
     socket.on(CLIENT_EVENTS.SELECT_ACTION, ({ action }) => {
-        if (!isPlayer(socket.id)) {
+        const roomId = socket.data.roomId;
+
+        if (!roomId) {
+            socket.emit(SERVER_EVENTS.ERROR, { message: 'No room joined' });
+            return;
+        }
+
+        const room = getRoom(roomId);
+
+        if (!room) {
+            socket.emit(SERVER_EVENTS.ERROR, { message: 'Room not found' });
+            return;
+        }
+
+        if (!room.playerOrder.includes(socket.id)) {
             socket.emit(SERVER_EVENTS.ERROR, { message: 'Unauthorized player' });
             return;
         }
@@ -46,31 +87,29 @@ export function registerGameHandlers(io, socket) {
             return;
         }
 
-        const selections = getSelections();
-
-        if (selections[socket.id]) {
-            socket.emit(SERVER_EVENTS.ERROR, { message: 'Action already selected for this round' });
+        if (room.selectionsBySocketId[socket.id]) {
+            socket.emit(SERVER_EVENTS.ERROR, {
+                message: 'Action already selected for this round',
+            });
             return;
         }
 
-        setSelection(socket.id, action);
+        setRoomSelection(roomId, socket.id, action);
 
-        const updatedSelections = getSelections();
-        const currentPlayers = getPlayers();
-
-        if (Object.keys(updatedSelections).length < 2) {
+        if (Object.keys(room.selectionsBySocketId).length < 2) {
             socket.emit(SERVER_EVENTS.PLAYER_SELECTED);
             return;
         }
 
-        const [playerOneId, playerTwoId] = currentPlayers;
-        const playerOneAction = updatedSelections[playerOneId];
-        const playerTwoAction = updatedSelections[playerTwoId];
+        const [playerOneId, playerTwoId] = room.playerOrder;
+        const playerOneAction = room.selectionsBySocketId[playerOneId];
+        const playerTwoAction = room.selectionsBySocketId[playerTwoId];
 
         const playerOneResult = resolveRound(playerOneAction, playerTwoAction);
         const playerTwoResult = resolveRound(playerTwoAction, playerOneAction);
 
         io.to(playerOneId).emit(SERVER_EVENTS.ROUND_RESULT, {
+            roomId,
             playerAction: playerOneAction,
             opponentAction: playerTwoAction,
             outcome: playerOneResult.outcome,
@@ -78,6 +117,7 @@ export function registerGameHandlers(io, socket) {
         });
 
         io.to(playerTwoId).emit(SERVER_EVENTS.ROUND_RESULT, {
+            roomId,
             playerAction: playerTwoAction,
             opponentAction: playerOneAction,
             outcome: playerTwoResult.outcome,
@@ -86,11 +126,22 @@ export function registerGameHandlers(io, socket) {
     });
 
     socket.on(CLIENT_EVENTS.NEW_ROUND, () => {
-        resetSelections();
-        io.emit(SERVER_EVENTS.ROUND_RESET);
+        const roomId = socket.data.roomId;
+
+        if (!roomId) {
+            socket.emit(SERVER_EVENTS.ERROR, { message: 'No room joined' });
+            return;
+        }
+
+        resetRoomSelections(roomId);
+        io.to(roomId).emit(SERVER_EVENTS.ROUND_RESET, { roomId });
     });
 
     socket.on('disconnect', () => {
-        removePlayer(socket.id);
+        const roomId = socket.data.roomId;
+
+        if (roomId) {
+            removePlayerFromRoom(roomId, socket.id);
+        }
     });
 }

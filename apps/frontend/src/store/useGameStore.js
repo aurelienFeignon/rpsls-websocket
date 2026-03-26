@@ -3,15 +3,31 @@ import { GAME_PHASES } from '@wooclap/shared';
 
 export const useGameStore = create((set) => ({
     phase: GAME_PHASES.CONNECTING,
+    roomId: null,
+    invitationLink: null,
     playerId: null,
     selectedAction: null,
     roundResult: null,
     errorMessage: null,
 
-    setWaitingForOpponent: ({ playerId } = {}) =>
+    setRoomCreated: (roomId) =>
         set(() => ({
+            roomId,
+            invitationLink: `${window.location.origin}/?room=${roomId}`,
+            errorMessage: null,
+        })),
+
+    setRoomJoined: (roomId) =>
+        set(() => ({
+            roomId,
+            invitationLink: `${window.location.origin}/?room=${roomId}`,
+            errorMessage: null,
+        })),
+
+    setWaitingForOpponent: ({ playerId } = {}) =>
+        set((state) => ({
             phase: GAME_PHASES.WAITING_FOR_OPPONENT,
-            playerId: playerId ?? null,
+            playerId: playerId ?? state.playerId,
             selectedAction: null,
             roundResult: null,
             errorMessage: null,

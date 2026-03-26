@@ -3,8 +3,13 @@ import { socket } from './socket.js';
 import { useGameStore } from '../store/useGameStore.js';
 
 export function registerGameSocket() {
-    socket.on('connect', () => {
-        // volontairement vide pour ce MVP
+    socket.on(SERVER_EVENTS.ROOM_CREATED, ({ roomId }) => {
+        useGameStore.getState().setRoomCreated(roomId);
+        window.history.replaceState({}, '', `/?room=${roomId}`);
+    });
+
+    socket.on(SERVER_EVENTS.ROOM_JOINED, ({ roomId }) => {
+        useGameStore.getState().setRoomJoined(roomId);
     });
 
     socket.on(SERVER_EVENTS.WAITING_FOR_OPPONENT, (payload) => {
@@ -16,7 +21,7 @@ export function registerGameSocket() {
     });
 
     socket.on(SERVER_EVENTS.PLAYER_SELECTED, () => {
-        // l’état local est déjà passé en waiting-for-other-player
+        // optionnel : rien à faire ici pour ce MVP
     });
 
     socket.on(SERVER_EVENTS.ROUND_RESULT, (payload) => {
@@ -32,7 +37,8 @@ export function registerGameSocket() {
     });
 
     return () => {
-        socket.off('connect');
+        socket.off(SERVER_EVENTS.ROOM_CREATED);
+        socket.off(SERVER_EVENTS.ROOM_JOINED);
         socket.off(SERVER_EVENTS.WAITING_FOR_OPPONENT);
         socket.off(SERVER_EVENTS.GAME_READY);
         socket.off(SERVER_EVENTS.PLAYER_SELECTED);

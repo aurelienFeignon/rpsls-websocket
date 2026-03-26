@@ -46,4 +46,42 @@ describe('resolveRound', () => {
             rule: 'Spock smashes Scissors',
         });
     });
+
+    it('returns opposite outcomes for inverse actions', () => {
+        const firstResult = resolveRound('paper', 'rock');
+        const secondResult = resolveRound('rock', 'paper');
+
+        expect(firstResult).toEqual({
+            outcome: 'win',
+            rule: 'Paper covers Rock',
+        });
+
+        expect(secondResult).toEqual({
+            outcome: 'lose',
+            rule: 'Paper covers Rock',
+        });
+    });
+
+    it('returns null rule for every draw case', () => {
+        const actions = ['rock', 'paper', 'scissors', 'lizard', 'spock'];
+
+        actions.forEach((action) => {
+            expect(resolveRound(action, action)).toEqual({
+                outcome: 'draw',
+                rule: null,
+            });
+        });
+    });
+
+    it('handles another valid matchup correctly', () => {
+        expect(resolveRound('paper', 'spock')).toEqual({
+            outcome: 'win',
+            rule: 'Paper disproves Spock',
+        });
+
+        expect(resolveRound('spock', 'paper')).toEqual({
+            outcome: 'lose',
+            rule: 'Paper disproves Spock',
+        });
+    });
 });
