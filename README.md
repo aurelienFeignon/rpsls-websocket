@@ -1,4 +1,4 @@
-# Wooclap Tech Case — Real-time Rock Paper Scissors Lizard Spock
+# Tech Case — Real-time Rock Paper Scissors Lizard Spock
 
 ## 📌 Overview
 
